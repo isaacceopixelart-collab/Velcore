@@ -12,12 +12,12 @@ const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_REDIRECT_URI
 );
 
-// Test endpoint
+// Test
 app.get("/", (req, res) => {
     res.send("Google Auth Backend is running!");
 });
 
-// Google login
+// Initial Google authorization
 app.get("/google/login", (req, res) => {
     const authUrl = oauth2Client.generateAuthUrl({
         access_type: "offline",
@@ -28,33 +28,33 @@ app.get("/google/login", (req, res) => {
     res.redirect(authUrl);
 });
 
-// Google OAuth callback
+// OAuth callback
 app.get("/google/callback", async (req, res) => {
     try {
         const { code } = req.query;
 
         if (!code) {
-            return res.status(400).send("No authorization code received.");
+            return res.status(400).send(
+                "No authorization code received."
+            );
         }
 
         const { tokens } = await oauth2Client.getToken(code);
 
-        if (!tokens.refresh_token) {
-            return res.status(400).send(
-                "No refresh token received. Try Google login again with consent."
-            );
-        }
+        console.log("Google authorization successful.");
 
-        console.log("Google login successful.");
-        console.log("Refresh token received.");
+        console.log(
+            "Refresh token received:",
+            !!tokens.refresh_token
+        );
 
-        // IMPORTANT:
-        // We do NOT save the refresh token to a file.
-        // Put the refresh token into Render Environment Variables:
-        // GOOGLE_REFRESH_TOKEN
+        console.log(
+            "ID token received:",
+            !!tokens.id_token
+        );
 
         res.send(
-            "Google login successful. Copy the refresh token to your Render GOOGLE_REFRESH_TOKEN environment variable."
+            "Google authorization successful. Refresh token is configured in Render."
         );
 
     } catch (error) {
@@ -67,7 +67,7 @@ app.get("/google/callback", async (req, res) => {
     }
 });
 
-// Get a fresh Google access token
+// Get fresh Google tokens
 app.get("/google/refresh", async (req, res) => {
     try {
         const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
@@ -88,7 +88,8 @@ app.get("/google/refresh", async (req, res) => {
         console.log("Google token refreshed successfully.");
 
         res.json({
-            access_token: credentials.access_token,
+            id_token: credentials.id_token || null,
+            access_token: credentials.access_token || null,
             expires_in: credentials.expiry_date
                 ? Math.floor(
                     (credentials.expiry_date - Date.now()) / 1000
@@ -106,7 +107,6 @@ app.get("/google/refresh", async (req, res) => {
     }
 });
 
-// Render port
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () => {
