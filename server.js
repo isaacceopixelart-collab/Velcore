@@ -1,5 +1,4 @@
 const express = require("express");
-const fs = require("fs");
 const { google } = require("googleapis");
 require("dotenv").config();
 
@@ -13,10 +12,12 @@ const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_REDIRECT_URI
 );
 
+// Test endpoint
 app.get("/", (req, res) => {
     res.send("Google Auth Backend is running!");
 });
 
+// Google login
 app.get("/google/login", (req, res) => {
     const authUrl = oauth2Client.generateAuthUrl({
         access_type: "offline",
@@ -27,6 +28,7 @@ app.get("/google/login", (req, res) => {
     res.redirect(authUrl);
 });
 
+// Google OAuth callback
 app.get("/google/callback", async (req, res) => {
     try {
         const { code } = req.query;
@@ -37,17 +39,23 @@ app.get("/google/callback", async (req, res) => {
 
         const { tokens } = await oauth2Client.getToken(code);
 
-        if (tokens.refresh_token) {
-            fs.writeFileSync(
-                "google-refresh-token.txt",
-                tokens.refresh_token
+        if (!tokens.refresh_token) {
+            return res.status(400).send(
+                "No refresh token received. Try Google login again with consent."
             );
         }
 
         console.log("Google login successful.");
-        console.log("Refresh token saved.");
+        console.log("Refresh token received.");
 
-        res.send("Google login successful. Refresh token saved.");
+        // IMPORTANT:
+        // We do NOT save the refresh token to a file.
+        // Put the refresh token into Render Environment Variables:
+        // GOOGLE_REFRESH_TOKEN
+
+        res.send(
+            "Google login successful. Copy the refresh token to your Render GOOGLE_REFRESH_TOKEN environment variable."
+        );
 
     } catch (error) {
         console.error("GOOGLE LOGIN ERROR:");
@@ -59,12 +67,16 @@ app.get("/google/callback", async (req, res) => {
     }
 });
 
+// Get a fresh Google access token
 app.get("/google/refresh", async (req, res) => {
     try {
-        const refreshToken = fs.readFileSync(
-            "google-refresh-token.txt",
-            "utf8"
-        ).trim();
+        const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+        if (!refreshToken) {
+            return res.status(500).json({
+                error: "GOOGLE_REFRESH_TOKEN is not configured."
+            });
+        }
 
         oauth2Client.setCredentials({
             refresh_token: refreshToken
@@ -93,6 +105,8 @@ app.get("/google/refresh", async (req, res) => {
         });
     }
 });
+
+// Render port
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () => {
